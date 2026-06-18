@@ -1,0 +1,51 @@
+name: Fetch IndiGo BluChip fares
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # daily at 03:00 UTC (~08:30 IST) - adjust as needed
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-fares:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Restore IndiGo session
+        run: echo "$INDIGO_STORAGE_STATE_B64" | base64 -d > storage_state.json
+        env:
+          INDIGO_STORAGE_STATE_B64: ${{ secrets.INDIGO_STORAGE_STATE_B64 }}
+
+      - name: Fetch fares
+        run: python scripts/fetch_fares.py
+        env:
+          HEADLESS: "1"
+
+      - name: Upload debug screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: debug/
+          if-no-files-found: ignore
+
+      - name: Commit and push updated data
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/fares.json data/scan_cursor.json docs/data/fares.json
+          git diff --cached --quiet || git commit -m "Update fare data (automated)"
+          git push

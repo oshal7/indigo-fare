@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IndiGo BluChip Fares - BLR &harr; NAG</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>IndiGo BluChip Fares - Bangalore &harr; Nagpur</h1>
+    <p id="last-updated">Loading...</p>
+    <p id="stale-warning" class="warning" hidden>
+      Data hasn't refreshed in a while - the automated fetch job may need attention.
+    </p>
+  </header>
+
+  <main>
+    <div class="controls">
+      <label for="direction-filter">Direction:</label>
+      <select id="direction-filter">
+        <option value="all">All</option>
+        <option value="BLR-NAG">Bangalore &rarr; Nagpur</option>
+        <option value="NAG-BLR">Nagpur &rarr; Bangalore</option>
+      </select>
+    </div>
+
+    <table id="fares-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Route</th>
+          <th>Flight</th>
+          <th>Departure</th>
+          <th>Arrival</th>
+          <th>BluChips</th>
+          <th>Last checked</th>
+        </tr>
+      </thead>
+      <tbody id="fares-body"></tbody>
+    </table>
+
+    <p id="empty-state" hidden>No fare data yet - the scheduled job hasn't run or hasn't completed a full pass.</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

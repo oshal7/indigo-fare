@@ -1,0 +1,6 @@
+storage_state.json
+storage_state.b64.txt
+debug/
+__pycache__/
+*.pyc
+.venv/
