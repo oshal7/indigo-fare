@@ -1,125 +1,135 @@
-# IndiGo BluChip Fare Tracker (BLR &harr; NAG)
+# Personal Flight Deal Tracker (PFDT)
 
-Tracks the cheapest IndiGo BluChip (loyalty point) redemption prices for
-flights between Bangalore (BLR) and Nagpur (NAG), in either direction,
-across a rolling 6-month window - and shows them sorted cheapest-first on a
-small GitHub Pages site.
+A hyper-focused, single-user tool that tracks IndiGo BluChip redemption
+deals across a configured set of routes (default: Bangalore ⇋ Nagpur) over
+a rolling 6-month window, and shows them as a flat feed sorted
+cheapest-first - no calendars, no scrolling.
 
-IndiGo has no public fare API, and BluChip price is only visible when
-logged into your own IndiGo account with the "Redeem BluChips" toggle on
-during search. So this works by reusing your logged-in browser session
-(never your password) to check a rotating batch of dates/routes on a
-schedule via GitHub Actions, and committing the results as JSON for the
-site to display.
+## Architecture
 
-## How it works
+Three decoupled pieces, per the PRD:
 
-1. You export your IndiGo login session once (locally, via a script that
-   opens a real browser for you to log into).
-2. That session is stored as a GitHub Actions secret.
-3. A scheduled GitHub Action loads the session, checks a batch of upcoming
-   dates for both routes, and commits the results to `data/fares.json`.
-4. GitHub Pages serves `docs/index.html`, which reads that data and shows a
-   sortable, filterable table.
+1. **Local Token Grabber** (`scripts/grab_token.py`) - run on your own
+   machine. Opens a real browser for you to log into IndiGo (handling OTP
+   yourself), captures the network request that returns BluChip pricing
+   while you do one manual search, and turns it into a reusable template.
+   Pushes the result straight to your repo's `INDIGO_SESSION_PROFILE_B64`
+   GitHub Actions secret via the GitHub API (encrypted with the repo's
+   public key) - no manual copy-paste of cookies.
 
-Because checking all ~182 days x 2 routes every run would be slow and more
-likely to get flagged by IndiGo's site, each run only checks a slice
-(`BATCH_SIZE`, default 25) and rotates through the full window over
-multiple runs (full refresh roughly every 1-2 weeks at a daily cron).
+2. **Cloud Engine** (`scripts/fetch_deals.py` + `.github/workflows/fetch-fares.yml`)
+   - runs twice daily on GitHub Actions. Loads the session profile from the
+   secret, replays the captured request once per month per route/direction
+   across the 6-month window (sleeping 1.0-3.5s between calls to avoid
+   hammering IndiGo), filters out anything above your configured points
+   baseline, sorts ascending, and commits `data/data.json`.
+
+3. **Static Web Client** (`docs/`) - a single Tailwind page on GitHub Pages
+   that reads `data.json`, lets you switch between configured route pairs
+   and directions, and lists deals as a flat feed with deep-link "Book ↗"
+   buttons.
 
 ## Setup
 
-### 1. Export your IndiGo session (local machine, not CI)
+### 1. Configure your routes
+
+Edit `config.json`:
+
+```json
+{
+  "routes": [{ "origin": "BLR", "destination": "NAG", "label": "Bangalore ⇋ Nagpur" }],
+  "scan_window_days": 180,
+  "max_points_baseline": 6000,
+  "booking_url_template": "https://www.goindigo.in/booking-search/book?from={origin}&to={destination}&date={date}&flightNo={flight_number}"
+}
+```
+
+Add more route objects to track additional pairs - the frontend's route
+dropdown is generated from this list automatically.
+
+### 2. Grab a session (local machine, not CI)
 
 ```bash
 pip install -r requirements.txt
 playwright install chromium
-python scripts/export_session.py
+python scripts/grab_token.py
 ```
 
-A browser window opens. Log into goindigo.in yourself (handle OTP if
-asked), confirm you're on your account/dashboard, then return to the
-terminal and press Enter. This saves `storage_state.json` locally
-(never committed - it's in `.gitignore`).
+This opens a browser, you log in and run one manual BluChip search, then
+the script asks you to confirm which captured network request had the
+points price and helps build a template from it. It'll then ask for a
+GitHub token (needs permission to write Actions secrets on this repo) to
+push the result automatically - or it prints the value for you to paste in
+manually under **Settings → Secrets and variables → Actions** as
+`INDIGO_SESSION_PROFILE_B64`.
 
-### 2. Add it as a GitHub secret
+### 3. Verify the response parser
 
-```bash
-base64 -w0 storage_state.json > storage_state.b64.txt
-```
+The very first run will write `data/debug_last_response.json` with the raw
+JSON IndiGo returned. Open it and check `KEY_ALIASES` at the top of
+`scripts/fetch_deals.py` actually matches the real field names (date,
+points, flight number, times) - adjust if the generic extractor isn't
+picking up deals. Same goes for `booking_url_template` in `config.json`:
+it's a best-effort guess at IndiGo's deep-link format and needs checking
+against a real booking URL.
 
-In your repo: **Settings &rarr; Secrets and variables &rarr; Actions &rarr;
-New repository secret**, name it `INDIGO_STORAGE_STATE_B64`, and paste the
-contents of `storage_state.b64.txt`.
+### 4. Enable GitHub Pages
 
-### 3. Enable GitHub Pages
-
-**Settings &rarr; Pages &rarr; Source:** deploy from this branch, folder
-`/docs`.
-
-### 4. Verify selectors before trusting the schedule
-
-The scraping selectors in `scripts/fetch_fares.py` are best-effort
-placeholders (no live access to a logged-in IndiGo session was available
-while writing this). Before relying on the scheduled job:
-
-```bash
-HEADLESS=0 BATCH_SIZE=2 python scripts/fetch_fares.py
-```
-
-Watch the browser navigate goindigo.in and fix any selector marked
-`# SELECTOR:` in the script to match the real DOM (inspect via browser
-devtools). Once it correctly scrapes a couple of flights, the scheduled
-Action should work the same way.
+**Settings → Pages → Source:** deploy from this branch, folder `/docs`.
 
 ### 5. Run it
 
-The workflow runs daily by default (`.github/workflows/fetch-fares.yml`).
-You can also trigger it manually from the Actions tab (`workflow_dispatch`).
+The workflow runs twice daily by default. Trigger it manually from the
+Actions tab any time (`workflow_dispatch`).
 
 ## Re-authenticating
 
-If a run fails with a `Session expired` error in the Actions log, your
-stored session has gone stale. Repeat steps 1-2 above to refresh the
-`INDIGO_STORAGE_STATE_B64` secret.
+If a run fails with a `Session expired` error in the Actions log, repeat
+step 2 to refresh the secret.
 
-## Limitations and risks
+## Security notes - read this
 
-- **No public API** - this scrapes an authenticated UI that IndiGo can
-  change at any time without notice, which can silently break scraping.
-- **Bot protection risk** - a plain HTTP request to goindigo.in returned
-  `403 Forbidden`, suggesting bot-protection (e.g. an Akamai-style WAF).
-  GitHub-hosted Actions runners use shared datacenter IPs that such
-  protections often challenge or block, even with a valid session. This is
-  unresolved/unverified until tested live. If runs start failing
-  consistently with no session-expiry error, this is the likely cause - the
-  documented fallback is switching the workflow to a
+- **Make this repository Private.** Even though session cookies never get
+  committed (they only ever live in the GitHub secret and your local
+  gitignored `session_profile.json`), keeping the scraping logic and run
+  history private is good hygiene.
+- **Important caveat the PRD gets wrong on standard GitHub plans:** marking
+  the repo Private does **not** make the published GitHub Pages site
+  private. On free/Pro/Team plans, a Pages site built from a private repo
+  is still reachable by anyone who has (or guesses) its URL - restricting
+  Pages visibility requires GitHub Enterprise Cloud. In practice this is
+  low-risk here because the only things published to `docs/data.json` are
+  flight dates/times/points/booking links - never cookies or tokens - but
+  don't treat the published site itself as access-controlled.
+- Session cookies/headers are never written into `data/data.json` or
+  `docs/data.json` - only into the local `session_profile.json` (gitignored)
+  and the encrypted GitHub secret.
+- This automates your own account for personal tracking. Review IndiGo's
+  Terms of Service on automated access; keep usage low-frequency and
+  personal, not redistributed.
+- A plain HTTP request to goindigo.in returned `403 Forbidden` during
+  research, suggesting bot-protection. Replaying captured requests via
+  `requests` from GitHub's shared runner IPs may still get challenged even
+  with valid cookies - if runs fail consistently without a session-expiry
+  error, this is the likely cause. Fallback: move the workflow to a
   [self-hosted runner](https://docs.github.com/en/actions/hosting-your-own-runners)
-  on your own machine/network.
-- **Session expiry** - by design there's no scripted login/OTP, so the
-  session will eventually expire and needs manual refresh (see above).
-- **Selectors need live verification** - see step 4 above.
-- **Personal use only** - this automates your own account for your own
-  tracking. Review IndiGo's Terms of Service regarding automated access;
-  this is intended for low-frequency personal use, not resale or
-  redistribution of fare data.
+  on your own network.
 
 ## Repo structure
 
 ```
 indigo-fare/
-├── .github/workflows/fetch-fares.yml   # scheduled scraper job
+├── config.json                       # routes, scan window, points baseline, booking URL template
+├── .github/workflows/fetch-fares.yml # twice-daily cloud engine
 ├── data/
-│   ├── fares.json                      # canonical scraped data
-│   └── scan_cursor.json                # rotating-batch progress
-├── docs/                               # GitHub Pages site
+│   └── data.json                     # canonical output
+├── docs/                             # GitHub Pages site (Tailwind via CDN)
 │   ├── index.html
-│   ├── style.css
 │   ├── app.js
-│   └── data/fares.json                 # copy for Pages to fetch
+│   └── data.json                     # copy for Pages to fetch
 ├── scripts/
-│   ├── export_session.py               # one-time/manual session export
-│   └── fetch_fares.py                  # scheduled scraper
+│   ├── grab_token.py                 # local: login, capture, templatize, push secret
+│   └── fetch_deals.py                # cloud: replay template, parse, filter, sort
 ├── requirements.txt
 └── .gitignore
 ```

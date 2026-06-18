@@ -1,0 +1,9 @@
+{
+  "routes": [
+    { "origin": "BLR", "destination": "NAG", "label": "Bangalore ⇋ Nagpur" }
+  ],
+  "scan_window_days": 180,
+  "max_points_baseline": 6000,
+  "currency_unit": "BluChips",
+  "booking_url_template": "https://www.goindigo.in/booking-search/book?from={origin}&to={destination}&date={date}&flightNo={flight_number}"
+}

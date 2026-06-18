@@ -1,6 +1,5 @@
-storage_state.json
-storage_state.b64.txt
-debug/
+session_profile.json
+data/debug_last_response.json
 __pycache__/
 *.pyc
 .venv/

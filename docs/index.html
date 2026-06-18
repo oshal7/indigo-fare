@@ -3,45 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IndiGo BluChip Fares - BLR &harr; NAG</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Flight Deal Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <header>
-    <h1>IndiGo BluChip Fares - Bangalore &harr; Nagpur</h1>
-    <p id="last-updated">Loading...</p>
-    <p id="stale-warning" class="warning" hidden>
-      Data hasn't refreshed in a while - the automated fetch job may need attention.
-    </p>
-  </header>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-md mx-auto p-4">
 
-  <main>
-    <div class="controls">
-      <label for="direction-filter">Direction:</label>
-      <select id="direction-filter">
-        <option value="all">All</option>
-        <option value="BLR-NAG">Bangalore &rarr; Nagpur</option>
-        <option value="NAG-BLR">Nagpur &rarr; Bangalore</option>
-      </select>
+    <div class="flex items-center gap-2 mb-3">
+      <select id="route-select" class="bg-slate-800 text-slate-100 rounded-lg px-3 py-2 text-sm flex-1"></select>
     </div>
 
-    <table id="fares-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Route</th>
-          <th>Flight</th>
-          <th>Departure</th>
-          <th>Arrival</th>
-          <th>BluChips</th>
-          <th>Last checked</th>
-        </tr>
-      </thead>
-      <tbody id="fares-body"></tbody>
-    </table>
+    <div class="grid grid-cols-2 gap-2 mb-3" id="direction-tabs"></div>
 
-    <p id="empty-state" hidden>No fare data yet - the scheduled job hasn't run or hasn't completed a full pass.</p>
-  </main>
+    <div id="last-updated" class="text-xs text-slate-400 mb-2 flex items-center gap-1">
+      <span>Loading...</span>
+    </div>
+
+    <div id="stale-banner" hidden class="bg-red-900/60 border border-red-700 text-red-200 text-sm rounded-lg px-3 py-2 mb-3">
+      Session Expired - Re-run local token grabber.
+    </div>
+
+    <h2 class="text-sm font-semibold text-amber-400 mb-2 tracking-wide">
+      🔥 TOP SWEET-SPOT DEALS (Next 6 Months)
+    </h2>
+
+    <ul id="deals-list" class="space-y-2"></ul>
+
+    <p id="empty-state" hidden class="text-slate-400 text-sm mt-4">
+      No deals yet - the scheduled job hasn't run or hasn't found anything under the points baseline.
+    </p>
+  </div>
 
   <script src="app.js"></script>
 </body>

@@ -1,56 +1,129 @@
-const CHEAP_THRESHOLD = 3000;
-const STALE_DAYS = 3;
+const STALE_HOURS = 24;
 
-const directionFilter = document.getElementById("direction-filter");
-const tbody = document.getElementById("fares-body");
+const routeSelect = document.getElementById("route-select");
+const directionTabs = document.getElementById("direction-tabs");
 const lastUpdatedEl = document.getElementById("last-updated");
-const staleWarningEl = document.getElementById("stale-warning");
+const staleBannerEl = document.getElementById("stale-banner");
+const dealsListEl = document.getElementById("deals-list");
 const emptyStateEl = document.getElementById("empty-state");
 
-let allFares = [];
+let data = { routes: [], deals: [] };
+let selectedRouteIndex = 0;
+let selectedDirection = "forward"; // "forward" = origin->destination, "reverse" = destination->origin
 
-async function loadFares() {
-  const res = await fetch("data/fares.json", { cache: "no-store" });
-  const doc = await res.json();
-  allFares = Object.values(doc.fares || {});
+function relativeTime(isoString) {
+  const then = new Date(isoString).getTime();
+  const diffMs = Date.now() - then;
+  const hours = diffMs / (1000 * 60 * 60);
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} minutes ago`;
+  if (hours < 24) return `${Math.round(hours)} hours ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
 
-  if (doc.last_updated) {
-    const updated = new Date(doc.last_updated);
-    lastUpdatedEl.textContent = `Data as of: ${updated.toLocaleString()}`;
-    const ageDays = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
-    staleWarningEl.hidden = ageDays <= STALE_DAYS;
+function formatDate(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
+async function load() {
+  const res = await fetch("data.json", { cache: "no-store" });
+  data = await res.json();
+
+  if (data.last_updated_timestamp) {
+    lastUpdatedEl.textContent = `Last Updated: ${relativeTime(data.last_updated_timestamp)}`;
+    const ageHours = (Date.now() - new Date(data.last_updated_timestamp).getTime()) / (1000 * 60 * 60);
+    staleBannerEl.hidden = ageHours <= STALE_HOURS;
   } else {
     lastUpdatedEl.textContent = "No data yet.";
   }
 
+  renderRouteOptions();
+  renderDirectionTabs();
   render();
 }
 
-function render() {
-  const direction = directionFilter.value;
-  const filtered = allFares
-    .filter((f) => direction === "all" || `${f.origin}-${f.destination}` === direction)
-    .sort((a, b) => a.bluechip_price - b.bluechip_price);
+function renderRouteOptions() {
+  routeSelect.innerHTML = "";
+  data.routes.forEach((route, i) => {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = route.label || `${route.origin} ⇋ ${route.destination}`;
+    routeSelect.appendChild(opt);
+  });
+  routeSelect.value = selectedRouteIndex;
+}
 
-  tbody.innerHTML = "";
-  emptyStateEl.hidden = filtered.length > 0;
+function currentRoute() {
+  return data.routes[selectedRouteIndex] || { origin: "", destination: "" };
+}
 
-  for (const f of filtered) {
-    const tr = document.createElement("tr");
-    if (f.bluechip_price <= CHEAP_THRESHOLD) tr.classList.add("cheap");
+function renderDirectionTabs() {
+  const route = currentRoute();
+  directionTabs.innerHTML = "";
 
-    tr.innerHTML = `
-      <td>${f.date}</td>
-      <td>${f.origin} &rarr; ${f.destination}</td>
-      <td>${f.flight_number}</td>
-      <td>${f.departure_time}</td>
-      <td>${f.arrival_time}</td>
-      <td>${f.bluechip_price}</td>
-      <td>${new Date(f.last_checked_at).toLocaleString()}</td>
-    `;
-    tbody.appendChild(tr);
+  const forwardBtn = document.createElement("button");
+  forwardBtn.textContent = `⚡ ${route.origin} → ${route.destination}`;
+  forwardBtn.dataset.direction = "forward";
+
+  const reverseBtn = document.createElement("button");
+  reverseBtn.textContent = `${route.destination} → ${route.origin}`;
+  reverseBtn.dataset.direction = "reverse";
+
+  [forwardBtn, reverseBtn].forEach((btn) => {
+    btn.className = "rounded-lg py-2 text-sm font-medium transition";
+    btn.addEventListener("click", () => {
+      selectedDirection = btn.dataset.direction;
+      updateTabStyles();
+      render();
+    });
+    directionTabs.appendChild(btn);
+  });
+
+  updateTabStyles();
+}
+
+function updateTabStyles() {
+  for (const btn of directionTabs.children) {
+    const active = btn.dataset.direction === selectedDirection;
+    btn.className =
+      "rounded-lg py-2 text-sm font-medium transition " +
+      (active ? "bg-amber-500 text-slate-950" : "bg-slate-800 text-slate-300");
   }
 }
 
-directionFilter.addEventListener("change", render);
-loadFares();
+function render() {
+  const route = currentRoute();
+  const [origin, destination] =
+    selectedDirection === "forward" ? [route.origin, route.destination] : [route.destination, route.origin];
+
+  const filtered = data.deals
+    .filter((d) => d.origin === origin && d.destination === destination)
+    .sort((a, b) => a.points - b.points);
+
+  dealsListEl.innerHTML = "";
+  emptyStateEl.hidden = filtered.length > 0;
+
+  for (const deal of filtered) {
+    const li = document.createElement("li");
+    li.className =
+      "flex items-center justify-between bg-slate-900 rounded-xl px-3 py-2 border border-slate-800";
+    li.innerHTML = `
+      <div class="flex items-center gap-3">
+        <span class="text-amber-400 font-bold text-sm">${deal.points.toLocaleString()} BC</span>
+        <span class="text-slate-300 text-sm">${formatDate(deal.date)}</span>
+        <span class="text-slate-500 text-xs">${deal.departure_time || ""}</span>
+      </div>
+      <a href="${deal.booking_url}" target="_blank" rel="noopener"
+         class="text-xs font-semibold text-sky-400 hover:text-sky-300">Book ↗</a>
+    `;
+    dealsListEl.appendChild(li);
+  }
+}
+
+routeSelect.addEventListener("change", () => {
+  selectedRouteIndex = Number(routeSelect.value);
+  renderDirectionTabs();
+  render();
+});
+
+load();
