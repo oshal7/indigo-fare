@@ -33,6 +33,32 @@ function decodePayload() {
   }
 }
 
+// Ranks captured requests so the one most likely holding the BluChip
+// points price is pre-selected instead of leaving the user to guess.
+function scoreRequest(req) {
+  const hay = `${req.url} ${req.response || ""}`.toLowerCase();
+  const hasPoint = /point|chip/.test(hay);
+  const hasPrice = /fare|price|amount/.test(hay);
+  let score = 0;
+  if (hasPoint && hasPrice) score += 10;
+  else if (hasPoint || hasPrice) score += 3;
+  score += Math.min((req.response || "").length / 1000, 5);
+  return score;
+}
+
+function pickBestIndex(requests) {
+  let bestIndex = 0;
+  let bestScore = -Infinity;
+  requests.forEach((req, i) => {
+    const score = scoreRequest(req);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  });
+  return bestIndex;
+}
+
 function renderRequestList() {
   requestListEl.innerHTML = "";
   if (!payload.requests || payload.requests.length === 0) {
@@ -44,8 +70,8 @@ function renderRequestList() {
     const label = document.createElement("label");
     label.className = "flex items-start gap-2 bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs";
     label.innerHTML = `
-      <input type="radio" name="req" value="${i}" ${i === 0 ? "checked" : ""} class="mt-0.5" />
-      <span><span class="text-slate-200">${req.method}</span> ${req.url}</span>
+      <input type="radio" name="req" value="${i}" ${i === selectedIndex ? "checked" : ""} class="mt-0.5" />
+      <span><span class="text-slate-200">${req.method}</span> ${req.url}${i === selectedIndex ? ' <span class="text-amber-400">(best match - pre-selected)</span>' : ""}</span>
     `;
     label.querySelector("input").addEventListener("change", () => {
       selectedIndex = i;
@@ -53,6 +79,19 @@ function renderRequestList() {
     });
     requestListEl.appendChild(label);
   });
+}
+
+// Best-effort scrape of the date/origin/destination from the selected
+// request so the user only has to confirm, not type from scratch.
+function autofillSearchFields(req) {
+  const hay = `${req.url} ${req.body || ""}`;
+  const dateMatch = hay.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if (dateMatch && !dateInput.value) dateInput.value = dateMatch[1];
+
+  const pairMatch = hay.match(/\b(?:org|origin|from|src)[=:"]+([A-Z]{3})\b/i);
+  const destMatch = hay.match(/\b(?:dest|destination|to)[=:"]+([A-Z]{3})\b/i);
+  if (pairMatch && !originInput.value) originInput.value = pairMatch[1].toUpperCase();
+  if (destMatch && !destInput.value) destInput.value = destMatch[1].toUpperCase();
 }
 
 function templatize(value, tokenMap) {
@@ -159,6 +198,10 @@ payload = decodePayload();
 if (payload) {
   noDataEl.hidden = true;
   reviewEl.hidden = false;
+  if (payload.requests && payload.requests.length > 0) {
+    selectedIndex = pickBestIndex(payload.requests);
+    autofillSearchFields(payload.requests[selectedIndex]);
+  }
   renderRequestList();
   updatePreview();
 }

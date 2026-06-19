@@ -71,12 +71,14 @@ dropdown is generated from this list automatically.
 4. Run **one** BluChip-enabled fare search so the points price is on screen.
 5. Tap **Export** in that bar - you'll land back on `grab.html` with the
    captured request(s) and cookies.
-6. Pick the request that actually returned the points price, fill in the
-   date/origin/destination you searched with, paste in a GitHub personal
-   access token (needs permission to write Actions secrets on this repo),
-   and tap **Save session secret**. If the automatic save fails (see CORS
-   note below), it shows you a value to paste manually under
-   **Settings → Secrets and variables → Actions** as
+6. `grab.html` auto-picks the request that most likely holds the points
+   price and pre-fills the date/origin/destination from it - just confirm
+   those look right (only fix them if they're clearly wrong), paste in a
+   GitHub personal access token (needs permission to write Actions secrets
+   on this repo - create this **once** and reuse the same token on every
+   future refresh), and tap **Save session secret**. If the automatic save
+   fails (see CORS note below), it shows you a value to paste manually
+   under **Settings → Secrets and variables → Actions** as
    `INDIGO_SESSION_PROFILE_B64` instead - still no computer required.
 
 **If this doesn't work at all:** if the captured cookies come back empty

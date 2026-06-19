@@ -24,16 +24,24 @@
       </ol>
       <textarea readonly rows="4" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-300" onclick="this.select()">javascript:(function(){var d=document,s=d.createElement('script');s.src='https://oshal7.github.io/indigo-fare/bookmarklet.js?t='+Date.now();d.body.appendChild(s);})();</textarea>
       <p class="text-xs text-slate-500">Tap the box above to select all, then copy it as the bookmark's URL/address.</p>
+      <details class="text-xs text-slate-500">
+        <summary class="cursor-pointer text-slate-400">Don't see "edit URL" on a bookmark on your phone?</summary>
+        <p class="mt-1"><span class="text-slate-300">Chrome (Android):</span> tap &#8942; menu &rarr; Bookmarks &rarr; long-press the bookmark &rarr; Edit &rarr; paste into the URL field.</p>
+        <p class="mt-1"><span class="text-slate-300">Safari (iPhone):</span> tap the bookmarks icon &rarr; Edit &rarr; tap the bookmark &rarr; paste into the address field.</p>
+      </details>
+      <p class="text-xs text-amber-400">This is the only one-time setup step - you won't redo it on future refreshes.</p>
     </div>
 
     <div id="review" hidden class="space-y-4">
       <div>
-        <h2 class="text-sm font-semibold text-slate-200 mb-1">1. Pick the request with the BluChip price</h2>
+        <h2 class="text-sm font-semibold text-slate-200 mb-1">1. Confirm the request (already pre-selected)</h2>
+        <p class="text-xs text-slate-500 mb-1">The one tagged "best match" below was auto-picked. Only change it if it's clearly wrong.</p>
         <div id="request-list" class="space-y-2"></div>
       </div>
 
       <div>
-        <h2 class="text-sm font-semibold text-slate-200 mb-1">2. What did you search?</h2>
+        <h2 class="text-sm font-semibold text-slate-200 mb-1">2. Confirm what you searched</h2>
+        <p class="text-xs text-slate-500 mb-1">Auto-filled where possible - just check these are right.</p>
         <div class="grid grid-cols-3 gap-2">
           <input id="input-date" placeholder="2026-07-10" class="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-sm" />
           <input id="input-origin" placeholder="BLR" class="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-sm" />
@@ -41,16 +49,18 @@
         </div>
       </div>
 
-      <div>
-        <h2 class="text-sm font-semibold text-slate-200 mb-1">3. Preview</h2>
-        <pre id="preview" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap"></pre>
-      </div>
+      <details class="text-xs text-slate-500">
+        <summary class="cursor-pointer text-slate-400">3. Preview (optional, for double-checking)</summary>
+        <pre id="preview" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap mt-2"></pre>
+      </details>
 
       <div>
         <h2 class="text-sm font-semibold text-slate-200 mb-1">4. Save to GitHub</h2>
         <p class="text-xs text-slate-500 mb-2">
-          Needs a GitHub personal access token with permission to write Actions secrets on
-          oshal7/indigo-fare. Used once in this page only - never stored.
+          Paste a GitHub personal access token with permission to write Actions secrets on
+          oshal7/indigo-fare. <span class="text-slate-300">You only need to create this token once</span> -
+          keep it in your password manager and reuse the same one every time you refresh the session.
+          It's used here once per save and never stored by this page.
         </p>
         <input id="input-pat" type="password" placeholder="github_pat_..." class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-sm mb-2" />
         <button id="save-btn" class="w-full bg-amber-500 text-slate-950 font-semibold rounded-lg py-2 text-sm">Save session secret</button>
