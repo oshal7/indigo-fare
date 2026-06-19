@@ -7,15 +7,18 @@ cheapest-first - no calendars, no scrolling.
 
 ## Architecture
 
-Three decoupled pieces, per the PRD:
+Three decoupled pieces:
 
-1. **Local Token Grabber** (`scripts/grab_token.py`) - run on your own
-   machine. Opens a real browser for you to log into IndiGo (handling OTP
-   yourself), captures the network request that returns BluChip pricing
-   while you do one manual search, and turns it into a reusable template.
-   Pushes the result straight to your repo's `INDIGO_SESSION_PROFILE_B64`
-   GitHub Actions secret via the GitHub API (encrypted with the repo's
-   public key) - no manual copy-paste of cookies.
+1. **Mobile Session Grabber** (a bookmarklet + `docs/grab.html` +
+   `docs/bookmarklet.js`) - entirely phone-based, no laptop, no script
+   install. You log into IndiGo yourself on its own real page (handling OTP
+   yourself - we never see or relay your password), tap a bookmarklet that
+   captures the network request returning BluChip pricing while you do one
+   manual search, then review and save it from `grab.html`, which pushes
+   the result straight to your repo's `INDIGO_SESSION_PROFILE_B64` GitHub
+   Actions secret via the GitHub API (encrypted client-side in the browser
+   with the repo's public key, via `libsodium-wrappers`) - no manual
+   copy-paste of cookies, no computer required.
 
 2. **Cloud Engine** (`scripts/fetch_deals.py` + `.github/workflows/fetch-fares.yml`)
    - runs twice daily on GitHub Actions. Loads the session profile from the
@@ -28,6 +31,15 @@ Three decoupled pieces, per the PRD:
    that reads `data.json`, lets you switch between configured route pairs
    and directions, and lists deals as a flat feed with deep-link "Book ↗"
    buttons.
+
+### Why this doesn't ask for your IndiGo username/password
+
+Login (and OTP) always happens on IndiGo's own real page in your own
+browser - this repo's pages never see, store, or relay your credentials.
+The bookmarklet only reads the session your browser already has *after*
+you've logged in normally, the same way the old desktop "export cookies"
+extensions work. This is simpler to build and safer than trying to script
+around 2FA.
 
 ## Setup
 
@@ -47,21 +59,36 @@ Edit `config.json`:
 Add more route objects to track additional pairs - the frontend's route
 dropdown is generated from this list automatically.
 
-### 2. Grab a session (local machine, not CI)
+### 2. Grab a session (from your phone, no computer needed)
 
-```bash
-pip install -r requirements.txt
-playwright install chromium
-python scripts/grab_token.py
-```
+1. In your phone's browser, bookmark any page, then edit that bookmark and
+   replace its URL with the bookmarklet code shown on `docs/grab.html`
+   (open `https://oshal7.github.io/indigo-fare/grab.html` and copy it from
+   the box there).
+2. Open `goindigo.in`, log in and complete OTP as normal.
+3. Tap the bookmark - a bar appears at the bottom of the page saying
+   "Capture armed".
+4. Run **one** BluChip-enabled fare search so the points price is on screen.
+5. Tap **Export** in that bar - you'll land back on `grab.html` with the
+   captured request(s) and cookies.
+6. Pick the request that actually returned the points price, fill in the
+   date/origin/destination you searched with, paste in a GitHub personal
+   access token (needs permission to write Actions secrets on this repo),
+   and tap **Save session secret**. If the automatic save fails (see CORS
+   note below), it shows you a value to paste manually under
+   **Settings → Secrets and variables → Actions** as
+   `INDIGO_SESSION_PROFILE_B64` instead - still no computer required.
 
-This opens a browser, you log in and run one manual BluChip search, then
-the script asks you to confirm which captured network request had the
-points price and helps build a template from it. It'll then ask for a
-GitHub token (needs permission to write Actions secrets on this repo) to
-push the result automatically - or it prints the value for you to paste in
-manually under **Settings → Secrets and variables → Actions** as
-`INDIGO_SESSION_PROFILE_B64`.
+**If this doesn't work at all:** if the captured cookies come back empty
+or the cloud engine still hits a login wall after a successful-looking
+save, IndiGo's session cookie is likely marked `HttpOnly`, which no
+JavaScript (including this bookmarklet) can ever read - a hard browser
+security limit, not a bug to fix. There's no client-side workaround for
+that; the next option is a cloud browser service (e.g. Browserbase,
+Steel.dev) or a GitHub Codespace running a VNC-accessible browser, either
+of which captures cookies at the browser-engine level instead of via JS.
+Neither is built into this repo yet - ask for it if the bookmarklet turns
+out not to work for your account.
 
 ### 3. Verify the response parser
 
@@ -85,14 +112,21 @@ Actions tab any time (`workflow_dispatch`).
 ## Re-authenticating
 
 If a run fails with a `Session expired` error in the Actions log, repeat
-step 2 to refresh the secret.
+the phone-based capture flow above (step 2) to refresh the secret. The
+"Data is stale" banner on the site links straight to `grab.html` as a
+shortcut.
 
 ## Security notes - read this
 
-- **Make this repository Private.** Even though session cookies never get
-  committed (they only ever live in the GitHub secret and your local
-  gitignored `session_profile.json`), keeping the scraping logic and run
-  history private is good hygiene.
+- **Make this repository Private.** Session cookies never get committed -
+  they only ever live in the GitHub secret, briefly in your phone browser's
+  memory while reviewing them on `grab.html`, and in the URL fragment
+  during the handoff (fragments are never sent to any server) - but keeping
+  the scraping logic and run history private is still good hygiene.
+- The GitHub personal access token you paste into `grab.html` is used
+  in-memory for that one save and is never written to `localStorage`,
+  `sessionStorage`, or any request log - it's cleared as soon as the save
+  attempt finishes (success or failure).
 - **Important caveat the PRD gets wrong on standard GitHub plans:** marking
   the repo Private does **not** make the published GitHub Pages site
   private. On free/Pro/Team plans, a Pages site built from a private repo
@@ -102,8 +136,7 @@ step 2 to refresh the secret.
   flight dates/times/points/booking links - never cookies or tokens - but
   don't treat the published site itself as access-controlled.
 - Session cookies/headers are never written into `data/data.json` or
-  `docs/data.json` - only into the local `session_profile.json` (gitignored)
-  and the encrypted GitHub secret.
+  `docs/data.json` - only into the encrypted GitHub secret.
 - This automates your own account for personal tracking. Review IndiGo's
   Terms of Service on automated access; keep usage low-frequency and
   personal, not redistributed.
@@ -126,9 +159,11 @@ indigo-fare/
 ├── docs/                             # GitHub Pages site (Tailwind via CDN)
 │   ├── index.html
 │   ├── app.js
+│   ├── grab.html                     # phone-based session capture: review + save
+│   ├── grab.js
+│   ├── bookmarklet.js                # loaded by the bookmarklet, runs on goindigo.in
 │   └── data.json                     # copy for Pages to fetch
 ├── scripts/
-│   ├── grab_token.py                 # local: login, capture, templatize, push secret
 │   └── fetch_deals.py                # cloud: replay template, parse, filter, sort
 ├── requirements.txt
 └── .gitignore

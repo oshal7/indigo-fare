@@ -1,15 +1,15 @@
 """
 Cloud Engine (runs in GitHub Actions, no browser - direct HTTP only).
 
-Replays the request template captured by grab_token.py once per month per
-route/direction across the configured scan window, using the saved session
-cookies/headers. No Playwright here on purpose - this is meant to be the
-lightweight, fast path; grab_token.py is the only piece that needs a real
-browser.
+Replays the request template captured by the phone-based bookmarklet flow
+(docs/bookmarklet.js + docs/grab.html) once per month per route/direction
+across the configured scan window, using the saved session cookies/headers.
+No browser here on purpose - capturing the session happens entirely on the
+user's phone; this script just replays a plain HTTP request.
 
 NOTE ON THE RESPONSE PARSER: the actual JSON shape IndiGo's internal
-endpoint returns is unknown until you've run grab_token.py against the real,
-logged-in site and looked at a captured response body. extract_deals() below
+endpoint returns is unknown until you've run the capture flow against the
+real, logged-in site and looked at a captured response body. extract_deals() below
 walks the response generically, looking for dicts that contain a date-like
 field and a points-like field, using the key name aliases in KEY_ALIASES.
 After your first real capture, open data/debug_last_response.json (written
@@ -164,7 +164,7 @@ def fetch_month(session: requests.Session, template: dict, origin: str, destinat
     )
     if looks_like_login_wall(response):
         raise SessionExpiredError(
-            f"Hit a login wall calling {req['url']} - re-run scripts/grab_token.py and refresh the secret."
+            f"Hit a login wall calling {req['url']} - re-run the phone capture flow (docs/grab.html) and refresh the secret."
         )
     response.raise_for_status()
 
