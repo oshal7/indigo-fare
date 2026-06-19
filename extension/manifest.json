@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "IndiGo BluChip Fare Tracker",
+  "version": "1.0.0",
+  "description": "On-demand scan of IndiGo BluChip points pricing across your configured routes and dates, ranked cheapest first - runs entirely inside your own logged-in browser session.",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": ["https://www.goindigo.in/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "IndiGo BluChip Fare Tracker" },
+  "options_page": "options.html",
+  "content_scripts": [
+    { "matches": ["https://www.goindigo.in/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ]
+}

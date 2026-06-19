@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IndiGo BluChip Fare Tracker</title>
+  <style>
+    body { width: 340px; margin: 0; background: #020617; color: #f1f5f9; font: 13px/1.4 -apple-system, sans-serif; }
+    .wrap { padding: 12px; }
+    h1 { font-size: 14px; color: #fbbf24; margin: 0 0 8px; }
+    h2 { font-size: 12px; color: #e2e8f0; margin: 12px 0 4px; }
+    p { color: #94a3b8; margin: 0 0 6px; }
+    input { width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 6px; color: #f1f5f9; font-size: 12px; margin-bottom: 4px; }
+    .row { display: flex; gap: 4px; }
+    .row input { flex: 1; }
+    button { width: 100%; background: #f59e0b; color: #0f172a; border: none; border-radius: 6px; padding: 8px; font-weight: 600; font-size: 12px; cursor: pointer; }
+    button:hover { background: #fbbf24; }
+    .status { font-size: 11px; margin-top: 4px; min-height: 14px; }
+    .status.err { color: #fca5a5; }
+    .status.ok { color: #34d399; }
+    .status.muted { color: #64748b; }
+    a.deal { display: block; background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; text-decoration: none; color: inherit; }
+    a.deal:hover { border-color: #f59e0b; }
+    a.deal .top { display: flex; justify-content: space-between; }
+    a.deal .points { color: #fbbf24; font-weight: 600; }
+    a.deal .meta { color: #64748b; font-size: 11px; }
+    #options-link { display: inline-block; margin-top: 8px; color: #64748b; font-size: 11px; }
+    #debug-link { display: inline-block; margin-top: 4px; color: #475569; font-size: 11px; cursor: pointer; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 6px; font-size: 10px; color: #94a3b8; max-height: 150px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>IndiGo BluChip Fare Tracker</h1>
+
+    <h2>1. Learn the search page (one-time, or after IndiGo changes its site)</h2>
+    <p>Log into goindigo.in normally in another tab and run one manual BluChip search. Switch back here, fill in exactly what you searched, then tap Learn.</p>
+    <div class="row">
+      <input id="learn-date" placeholder="2026-07-10" />
+      <input id="learn-origin" placeholder="BLR" />
+      <input id="learn-dest" placeholder="NAG" />
+    </div>
+    <button id="learn-btn">Learn from active tab</button>
+    <div id="learn-status" class="status"></div>
+
+    <h2>2. Scan</h2>
+    <button id="scan-btn">Scan now</button>
+    <div id="scan-status" class="status"></div>
+
+    <h2>Results</h2>
+    <div id="results"></div>
+
+    <a id="debug-link">Show last scrape debug</a>
+    <pre id="debug-pre" hidden></pre>
+
+    <a id="options-link" href="#">Settings (routes, baseline, window)</a>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

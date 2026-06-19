@@ -32,6 +32,15 @@ Three decoupled pieces:
    and directions, and lists deals as a flat feed with deep-link "Book ↗"
    buttons.
 
+### Alternative: Chrome extension (desktop, on-demand)
+
+If you'd rather run this on-demand from a laptop/desktop instead of the
+phone+cloud pipeline above, see [`extension/README.md`](extension/README.md).
+It's self-contained - no GitHub secrets, no static site - and scans by
+navigating real background tabs on goindigo.in (so it never needs to read a
+cookie value, sidestepping the `HttpOnly` and bot-protection caveats noted
+below). Trade-off: desktop Chrome only, no mobile.
+
 ### Why this doesn't ask for your IndiGo username/password
 
 Login (and OTP) always happens on IndiGo's own real page in your own
