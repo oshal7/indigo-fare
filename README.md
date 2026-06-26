@@ -32,14 +32,18 @@ Three decoupled pieces:
    and directions, and lists deals as a flat feed with deep-link "Book ↗"
    buttons.
 
-### Alternative: Chrome extension (desktop, on-demand)
+### Alternative: Chrome extension (desktop, on-demand or automatic)
 
-If you'd rather run this on-demand from a laptop/desktop instead of the
-phone+cloud pipeline above, see [`extension/README.md`](extension/README.md).
-It's self-contained - no GitHub secrets, no static site - and scans by
+If you'd rather run this from a laptop/desktop instead of the phone+cloud
+pipeline above, see [`extension/README.md`](extension/README.md). It's
+self-contained - no GitHub secrets, no static site - and scans by
 navigating real background tabs on goindigo.in (so it never needs to read a
 cookie value, sidestepping the `HttpOnly` and bot-protection caveats noted
-below). Trade-off: desktop Chrome only, no mobile.
+below). It can run on-demand or automatically in the background
+(`chrome.alarms`, every 6/12/24h), with desktop notifications for new
+deals, a toolbar badge, a full sortable/filterable results page, and
+session-expiry detection. Trade-off: desktop Chrome only, no mobile, and it
+only scans while Chrome is running.
 
 ### Why this doesn't ask for your IndiGo username/password
 

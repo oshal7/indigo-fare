@@ -1,12 +1,14 @@
 /*
- * Orchestrates an on-demand scan: for every route/direction/month in the
- * configured window, navigates a background tab to the learned search URL
- * template and asks content.js to scrape the rendered page. Real tab
- * navigation means cookies (even HttpOnly ones) and IndiGo's own
- * bot-protection checks are handled exactly as they would be for normal
- * browsing - nothing here ever reads a cookie value or replays a raw API
- * call.
+ * Orchestrates a scan (manual or alarm-triggered): for every
+ * route/direction/month in the configured window, navigates a background
+ * tab to the learned search URL template and asks content.js to scrape the
+ * rendered page. Real tab navigation means cookies (even HttpOnly ones) and
+ * IndiGo's own bot-protection checks are handled exactly as they would be
+ * for normal browsing - nothing here ever reads a cookie value or replays a
+ * raw API call.
  */
+
+const ALARM_NAME = "periodicScan";
 
 const DEFAULT_CONFIG = {
   routes: [{ origin: "BLR", destination: "NAG", label: "Bangalore ⇋ Nagpur" }],
@@ -14,11 +16,17 @@ const DEFAULT_CONFIG = {
   max_points_baseline: 6000,
   booking_url_template:
     "https://www.goindigo.in/booking-search/book?from={origin}&to={destination}&date={date}&flightNo={flight_number}",
+  auto_scan: { enabled: false, interval_hours: 12 },
 };
 
 async function getConfig() {
   const stored = await chrome.storage.sync.get("config");
-  return stored.config || DEFAULT_CONFIG;
+  const config = stored.config || {};
+  return {
+    ...DEFAULT_CONFIG,
+    ...config,
+    auto_scan: { ...DEFAULT_CONFIG.auto_scan, ...(config.auto_scan || {}) },
+  };
 }
 
 async function getUrlTemplate() {
@@ -61,6 +69,10 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function dealKey(d) {
+  return `${d.date}|${d.origin}-${d.destination}|${d.flight_number}`;
+}
+
 function waitForTabLoad(tabId) {
   return new Promise((resolve) => {
     function listener(id, info) {
@@ -84,11 +96,16 @@ async function scrapeOneSearch(url) {
     await sleep(3000); // let the SPA finish its own AJAX render after navigation
     const response = await chrome.tabs.sendMessage(tab.id, { type: "SCRAPE" });
     await chrome.storage.local.set({
-      lastDebugScrape: { url, candidates: response?.candidates || [], rawHints: response?.rawHints || [] },
+      lastDebugScrape: {
+        url,
+        candidates: response?.candidates || [],
+        rawHints: response?.rawHints || [],
+        loginWall: !!response?.loginWall,
+      },
     });
-    return response?.candidates || [];
+    return response || { candidates: [], rawHints: [], loginWall: false };
   } catch (e) {
-    return [];
+    return { candidates: [], rawHints: [], loginWall: false };
   } finally {
     chrome.tabs.remove(tab.id).catch(() => {});
   }
@@ -98,7 +115,7 @@ async function runScan(onProgress) {
   const config = await getConfig();
   const template = await getUrlTemplate();
   if (!template) {
-    throw new Error("No search URL learned yet - run the \"Learn\" step first.");
+    throw new Error('No search URL learned yet - run the "Learn" step first.');
   }
 
   const months = monthStartDates(config.scan_window_days);
@@ -106,8 +123,9 @@ async function runScan(onProgress) {
   const allDeals = [];
   let step = 0;
   const totalSteps = config.routes.length * 2 * months.length;
+  let sessionExpired = false;
 
-  for (const route of config.routes) {
+  scanLoop: for (const route of config.routes) {
     for (const [origin, destination] of [
       [route.origin, route.destination],
       [route.destination, route.origin],
@@ -118,7 +136,11 @@ async function runScan(onProgress) {
         onProgress?.(step, totalSteps, `${origin}→${destination} ${dateStr}`);
 
         const url = fillTemplate(template, { "{ORIGIN}": origin, "{DEST}": destination, "{DATE}": dateStr });
-        const candidates = await scrapeOneSearch(url);
+        const { candidates, loginWall } = await scrapeOneSearch(url);
+        if (loginWall) {
+          sessionExpired = true;
+          break scanLoop;
+        }
         for (const c of candidates) {
           allDeals.push({
             origin,
@@ -139,7 +161,7 @@ async function runScan(onProgress) {
   for (const deal of allDeals) {
     if (deal.date < today) continue;
     if (config.max_points_baseline != null && deal.points > config.max_points_baseline) continue;
-    const key = `${deal.date}|${deal.origin}-${deal.destination}|${deal.flight_number}`;
+    const key = dealKey(deal);
     deal.booking_url = fillTemplate(config.booking_url_template, {
       "{origin}": deal.origin,
       "{destination}": deal.destination,
@@ -150,10 +172,74 @@ async function runScan(onProgress) {
   }
 
   const deals = [...deduped.values()].sort((a, b) => a.points - b.points);
-  const result = { last_updated: new Date().toISOString(), deals };
+  const result = {
+    last_updated: new Date().toISOString(),
+    deals,
+    session_expired: sessionExpired,
+    new_deal_keys: [],
+  };
+
+  await applyBadgeAndNotifications(result);
   await chrome.storage.local.set({ lastResult: result });
   return result;
 }
+
+async function applyBadgeAndNotifications(result) {
+  if (result.session_expired) {
+    chrome.action.setBadgeText({ text: "!" });
+    chrome.action.setBadgeBackgroundColor({ color: "#ef4444" });
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon128.png",
+      title: "IndiGo session expired",
+      message: "Log into goindigo.in again, then run Scan to resume tracking.",
+    });
+    return;
+  }
+
+  chrome.action.setBadgeText({ text: result.deals.length ? String(result.deals.length) : "" });
+  chrome.action.setBadgeBackgroundColor({ color: "#f59e0b" });
+
+  const { seenDealKeys } = await chrome.storage.local.get("seenDealKeys");
+  const seenSet = new Set(seenDealKeys || []);
+  const fresh = result.deals.filter((d) => !seenSet.has(dealKey(d)));
+  result.new_deal_keys = fresh.map(dealKey);
+
+  // Skip the notification on the very first-ever scan (nothing to diff against yet).
+  if (fresh.length > 0 && seenDealKeys) {
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon128.png",
+      title: `${fresh.length} new BluChip deal${fresh.length > 1 ? "s" : ""} found`,
+      message: fresh
+        .slice(0, 3)
+        .map((d) => `${d.origin}→${d.destination} ${d.date}: ${d.points} pts`)
+        .join("\n"),
+    });
+  }
+
+  await chrome.storage.local.set({ seenDealKeys: result.deals.map(dealKey) });
+}
+
+async function setAutoScanAlarm(enabled, intervalHours) {
+  await chrome.alarms.clear(ALARM_NAME);
+  if (enabled) {
+    chrome.alarms.create(ALARM_NAME, { periodInMinutes: Math.max(60, (intervalHours || 12) * 60) });
+  }
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === ALARM_NAME) {
+    runScan().catch((e) => console.error("Auto-scan failed:", e));
+  }
+});
+
+chrome.runtime.onInstalled.addListener(async () => {
+  const config = await getConfig();
+  if (config.auto_scan.enabled) {
+    setAutoScanAlarm(true, config.auto_scan.interval_hours);
+  }
+});
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "START_SCAN") {
@@ -163,5 +249,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((result) => sendResponse({ ok: true, result }))
       .catch((e) => sendResponse({ ok: false, error: e.message }));
     return true; // keep the message channel open for the async response
+  }
+  if (msg.type === "SET_AUTO_SCAN") {
+    setAutoScanAlarm(msg.enabled, msg.intervalHours).then(() => sendResponse({ ok: true }));
+    return true;
   }
 });

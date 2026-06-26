@@ -36,15 +36,41 @@ Chrome session - no GitHub secrets, no static site, no cloud engine.
    tap **Learn from active tab**. It string-replaces those exact values in
    the tab's URL with `{DATE}`/`{ORIGIN}`/`{DEST}` placeholders and saves
    the template locally (`chrome.storage.local`, never leaves your machine).
-2. **Scan.** Tap **Scan now**. It opens a background tab per
-   route/direction/month across your configured window, waits for each
-   page to render, asks the page to scrape the BluChip price, then closes
-   the tab and moves to the next (with a 2.5-5s randomized delay between
-   each, same spirit as the cloud engine's rate limiting). Results appear
-   ranked cheapest-first with "Book" links.
+2. **Scan.** Tap **Scan now** (from the popup or the full results page). It
+   opens a background tab per route/direction/month across your configured
+   window, waits for each page to render, asks the page to scrape the
+   BluChip price, then closes the tab and moves to the next (with a
+   2.5-5s randomized delay between each, same spirit as the cloud engine's
+   rate limiting). The toolbar badge shows the deal count, and the popup
+   shows the cheapest 6 with a link to the full results page for the rest.
 3. **Settings** (gear/link in the popup) lets you edit routes, the scan
-   window, the points baseline, and the booking URL template - same shape
-   as the main repo's `config.json`.
+   window, the points baseline, the booking URL template, and automatic
+   background scanning - same route/window/baseline shape as the main
+   repo's `config.json`.
+
+## Automatic background scanning
+
+Settings has a toggle for **automatic background scanning** (every 6/12/24
+hours, via `chrome.alarms`). While enabled and Chrome is running (it doesn't
+scan while Chrome is fully closed), the extension reruns the scan
+unattended and:
+
+- Shows a **desktop notification** when new deals appear that weren't in
+  the previous scan (deduped by date + route + flight number, so you're
+  not renotified for the same deal every cycle).
+- Updates the **toolbar badge** with the current deal count.
+- If your IndiGo session has expired mid-scan (detected via a login-wall
+  check - a password field or "session expired"/"please log in" text on
+  the page), it stops the scan immediately, shows a session-expired
+  notification and toolbar badge, and surfaces a banner in the popup and
+  results page telling you to log into `goindigo.in` again and re-scan.
+
+## Full results page
+
+The popup only shows the top 6 deals. Click **Open full results page** (or
+the toolbar popup's link) for a dedicated tab listing every deal, with
+filtering by route and sorting by points or date. Deals new since the last
+scan are marked **NEW**.
 
 ## The DOM scraper is a heuristic - expect to tune it once
 

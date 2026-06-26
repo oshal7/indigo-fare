@@ -23,14 +23,17 @@
     a.deal .top { display: flex; justify-content: space-between; }
     a.deal .points { color: #fbbf24; font-weight: 600; }
     a.deal .meta { color: #64748b; font-size: 11px; }
-    #options-link { display: inline-block; margin-top: 8px; color: #64748b; font-size: 11px; }
+    #options-link, #results-link { display: inline-block; margin-top: 8px; margin-right: 12px; color: #64748b; font-size: 11px; }
     #debug-link { display: inline-block; margin-top: 4px; color: #475569; font-size: 11px; cursor: pointer; }
     pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 6px; font-size: 10px; color: #94a3b8; max-height: 150px; overflow-y: auto; }
+    .banner { background: #1c1917; border: 1px solid #ef4444; color: #fca5a5; border-radius: 6px; padding: 6px 8px; font-size: 11px; margin-bottom: 8px; }
+    .links { display: flex; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>IndiGo BluChip Fare Tracker</h1>
+    <div id="auto-scan-status" class="status muted"></div>
 
     <h2>1. Learn the search page (one-time, or after IndiGo changes its site)</h2>
     <p>Log into goindigo.in normally in another tab and run one manual BluChip search. Switch back here, fill in exactly what you searched, then tap Learn.</p>
@@ -47,12 +50,16 @@
     <div id="scan-status" class="status"></div>
 
     <h2>Results</h2>
+    <div id="banner-area"></div>
     <div id="results"></div>
 
     <a id="debug-link">Show last scrape debug</a>
     <pre id="debug-pre" hidden></pre>
 
-    <a id="options-link" href="#">Settings (routes, baseline, window)</a>
+    <div class="links">
+      <a id="results-link" href="#">Open full results page</a>
+      <a id="options-link" href="#">Settings</a>
+    </div>
   </div>
   <script src="popup.js"></script>
 </body>

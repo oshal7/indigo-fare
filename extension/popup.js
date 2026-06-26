@@ -11,6 +11,11 @@ const resultsEl = document.getElementById("results");
 const debugLink = document.getElementById("debug-link");
 const debugPre = document.getElementById("debug-pre");
 const optionsLink = document.getElementById("options-link");
+const resultsLink = document.getElementById("results-link");
+const bannerAreaEl = document.getElementById("banner-area");
+const autoScanStatusEl = document.getElementById("auto-scan-status");
+
+const POPUP_RESULT_LIMIT = 6;
 
 function setStatus(el, text, kind) {
   el.textContent = text;
@@ -20,6 +25,11 @@ function setStatus(el, text, kind) {
 optionsLink.addEventListener("click", (e) => {
   e.preventDefault();
   chrome.runtime.openOptionsPage();
+});
+
+resultsLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  chrome.tabs.create({ url: chrome.runtime.getURL("results.html") });
 });
 
 debugLink.addEventListener("click", async () => {
@@ -77,24 +87,45 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 function renderResults(result) {
+  bannerAreaEl.innerHTML = result.session_expired
+    ? '<div class="banner">Session expired mid-scan - log into goindigo.in again, then Scan now.</div>'
+    : "";
+
   if (!result.deals.length) {
-    resultsEl.innerHTML = '<p>No deals found under the points baseline. Check "Show last scrape debug" if this looks wrong.</p>';
+    resultsEl.innerHTML = result.session_expired
+      ? ""
+      : '<p>No deals found under the points baseline. Check "Show last scrape debug" if this looks wrong.</p>';
     setStatus(scanStatus, `Done - 0 matches (${new Date(result.last_updated).toLocaleString()})`, "muted");
     return;
   }
   setStatus(scanStatus, `Done - ${result.deals.length} matches (${new Date(result.last_updated).toLocaleString()})`, "ok");
-  resultsEl.innerHTML = result.deals
-    .map(
-      (d) => `
+
+  const newKeys = new Set(result.new_deal_keys || []);
+  const shown = result.deals.slice(0, POPUP_RESULT_LIMIT);
+  resultsEl.innerHTML = shown
+    .map((d) => {
+      const key = `${d.date}|${d.origin}-${d.destination}|${d.flight_number}`;
+      return `
       <a class="deal" href="${d.booking_url}" target="_blank">
         <div class="top">
-          <span>${d.origin} → ${d.destination} · ${d.date}</span>
+          <span>${d.origin} → ${d.destination} · ${d.date}${newKeys.has(key) ? " 🆕" : ""}</span>
           <span class="points">${d.points} pts</span>
         </div>
         <div class="meta">${d.flight_number || ""} ${d.departure_time || ""}</div>
-      </a>`
-    )
+      </a>`;
+    })
     .join("");
+  if (result.deals.length > POPUP_RESULT_LIMIT) {
+    resultsEl.innerHTML += `<p>+${result.deals.length - POPUP_RESULT_LIMIT} more - see full results page.</p>`;
+  }
+}
+
+async function renderAutoScanStatus() {
+  const stored = await chrome.storage.sync.get("config");
+  const autoScan = stored.config?.auto_scan;
+  autoScanStatusEl.textContent = autoScan?.enabled
+    ? `Auto-scan: every ${autoScan.interval_hours}h (configure in Settings)`
+    : "Auto-scan is off (enable it in Settings to run in the background)";
 }
 
 (async function init() {
@@ -103,4 +134,5 @@ function renderResults(result) {
     setStatus(learnStatus, "Template already learned - re-learn anytime if IndiGo changes its site.", "muted");
   }
   if (stored.lastResult) renderResults(stored.lastResult);
+  renderAutoScanStatus();
 })();

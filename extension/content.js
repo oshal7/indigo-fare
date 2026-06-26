@@ -65,8 +65,17 @@ function scrapeBluChipCandidates() {
   return { candidates, rawHints: rawHints.slice(0, 20) };
 }
 
+function detectLoginWall() {
+  if (document.querySelector('input[type="password"]')) return true;
+  const bodyText = (document.body.innerText || "").toLowerCase();
+  return /sign in to continue|please log ?in|session (has )?expired|login to continue|log in to your account/.test(
+    bodyText
+  );
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "SCRAPE") {
-    sendResponse({ url: location.href, ...scrapeBluChipCandidates() });
+    const { candidates, rawHints } = scrapeBluChipCandidates();
+    sendResponse({ url: location.href, candidates, rawHints, loginWall: detectLoginWall() });
   }
 });
